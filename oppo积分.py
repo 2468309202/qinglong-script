@@ -39,7 +39,6 @@ import notify
 # 请注意：部分活动即使完成任务也没有抽奖机会，属于正常现象
 IS_LUCKY_DRAW_ENABLED = True
 
-
 # --- 摘要与日志模块 ---
 class NotificationManager:
     """
