@@ -96,4 +96,7 @@ task readhub_daily_bot.py ##task xxxx.py
 
 <h3 id="wappy"><font style="color:rgba(0, 0, 0, 0.85);background-color:rgb(250, 250, 250);">分享几个可用的青龙脚本库。</font></h3>
 [https://script.345yun.cn/](https://script.345yun.cn/)
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=2468309202/qinglong-script&type=date&legend=top-left)](https://www.star-history.com/#2468309202/qinglong-script&type=date&legend=top-left)
 
