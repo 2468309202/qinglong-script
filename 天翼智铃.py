@@ -34,47 +34,29 @@ from Crypto.Util.Padding import pad, unpad
 def send_to_qq(title, content):
     """直接调用 Autman 接口推送，无需 sendNotify.py"""
     # 从环境变量读取配置
-    url = os.environ.get("GOBOT_URL", "").strip()
-    qq_raw = os.environ.get("GOBOT_QQ", "").strip()
+    url = os.environ.get("GOBOT_URL")
+    qq = os.environ.get("GOBOT_QQ")
 
-    if not url or not qq_raw:
+    if not url or not qq:
         print("【推送跳过】未配置环境变量 GOBOT_URL 或 GOBOT_QQ")
         return
 
-    qq_targets = []
-    for item in re.split(r'[,\n;&|]+', qq_raw):
-        item = item.strip()
-        if not item:
-            continue
-        try:
-            qq_targets.append(int(item))
-        except ValueError:
-            print(f"【推送跳过】无效QQ号/群号: {item}")
-
-    if not qq_targets:
-        print("【推送跳过】GOBOT_QQ 没有可用的QQ号/群号")
-        return
-
-    message = f"{title}\n\n{content}"
-    success_count = 0
+    # 构造标准 GOBOT 消息格式
+    data = {
+        "user_id": int(qq),
+        "message": f"{title}\n\n{content}"
+    }
 
     try:
-        for qq in qq_targets:
-            data = {
-                "user_id": qq,
-                "message": message
-            }
-            res = requests.post(url, json=data, timeout=10)
-            if res.status_code == 200:
-                success_count += 1
-                print(f"【推送成功】目标 {qq}：{res.text}")
-            else:
-                print(f"【推送失败】目标 {qq}，状态码：{res.status_code}")
+        # 发送 POST 请求到你的 Autman
+        res = requests.post(url, json=data, timeout=10)
+        if res.status_code == 200:
+            print(f"【推送成功】Autman 已接收：{res.text}")
+        else:
+            print(f"【推送失败】状态码：{res.status_code}")
     except Exception as e:
         print(f"【推送报错】: {str(e)}")
 
-    print(f"【推送结果】成功 {success_count}/{len(qq_targets)}")
-# ----------------分割线
 ACTIVITY_MODE = os.environ.get("ACTIVITY_MODE", "new_year")
 
 CHANNEL_ID = "156000007489"
@@ -184,33 +166,16 @@ def decrypt_response(encrypted_base64, t, e, i):
 #     return accounts
 def parse_accounts(s):
     accounts = []
-    if not s:
-        return accounts
+    if not s: return accounts
     for item in re.split(r'[&\n]', s):
-        item = item.strip()
-        if not item:
-            continue
+        if not item.strip(): continue
         for sep in ['#', '@', '----']:
             if sep in item:
-                parts = item.split(sep, 1)
+                parts = item.split(sep)
                 if len(parts) >= 2:
                     accounts.append((parts[0].strip(), parts[1].strip()))
                     break
-    return accounts
-
-
-def to_float(value, default=0.0):
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def mask_phone(phone: str) -> str:
-    phone = str(phone).strip()
-    if len(phone) < 7:
-        return phone
-    return f"{phone[:3]}****{phone[-4:]}"
+        return accounts
 def userLoginNormal(phone, password):
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     rdmstr = ''.join(random.choices('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', k=16))
@@ -525,54 +490,23 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
     print(f"活动: 2026新年星辰")
     print(f"{'='*50}")
 
-    summary = {
-        "phone": phone,
-        "status": "失败",
-        "error": "",
-        "ok": False,
-        "has_output": False,
-        "video": "0/3",
-        "image": "0/3",
-        "task1_success_count": 0,
-        "task2_success_count": 0,
-        "lottery_initial": 0,
-        "lottery_after_task1": 0,
-        "lottery_final": 0,
-        "lottery_success": 0,
-        "lottery_awards": [],
-        "red_packet_gained": 0.0,
-        "already_redeem": "0",
-        "balance_cost": "0",
-        "redeem_status": "未触发",
-        "redeem_amount": "0",
-        "need_to_redeem": "",
-        "redeem_records": [],
-        "notes": []
-    }
-
     print("\n[1] 账密登录...")
     login_result = userLoginNormal(phone, password)
     if not login_result:
         print("❌ 登录失败")
-        summary["error"] = "登录失败"
-        summary["status"] = "登录失败"
-        return summary
+        return False
     print("✓ 登录成功")
     print("\n[2] 获取ticket...")
     ticket = get_ticket(phone, login_result['userId'], login_result['token'])
     if not ticket:
         print("❌ 获取ticket失败")
-        summary["error"] = "获取ticket失败"
-        summary["status"] = "获取ticket失败"
-        return summary
+        return False
     print("✓ 获取ticket成功")
     print("\n[3] SSO登录...")
     token, cookies = sso_login_v2(ticket)
     if not token:
         print("❌ SSO登录失败")
-        summary["error"] = "SSO登录失败"
-        summary["status"] = "SSO登录失败"
-        return summary
+        return False
     print(f"✓ SSO登录成功")
 
     api = InviteAPI(token, cookies)
@@ -606,7 +540,6 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
         print()
     else:
         print(f"⚠ 查询失败，继续执行任务\n")
-        summary["notes"].append("任务状态查询失败")
 
     print("[5] 查询初始抽奖次数...")
     lottery_times_result = api.get_lottery_times(phone)
@@ -616,37 +549,30 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
     else:
         print(f"⚠ 查询失败")
         initial_times = 0
-        summary["notes"].append("初始抽奖次数查询失败")
-    summary["lottery_initial"] = initial_times
 
     print("\n" + "="*50)
     print("【任务1】制作同款视频（获得抽奖次数）")
     print("="*50)
 
-    task1_success = False
-    task1_success_count = 0
     if task1_completed:
         print("\n✓ 任务1已完成，跳过")
         task1_success = True
-        task1_success_count = 3
-        summary["video"] = "已完成(跳过)"
     else:
         print("\n[6] 查询新年模板列表...")
         templates_result = api.query_new_year_templates()
         if templates_result.get("code") != "0000":
             print(f"❌ 获取模板列表失败: {templates_result}")
             task1_success = False
-            summary["notes"].append("任务1模板查询失败")
         else:
             template_list = templates_result.get("data", {}).get("list", [])
             if not template_list:
                 print("❌ 模板列表为空")
                 task1_success = False
-                summary["notes"].append("任务1模板为空")
             else:
                 print(f"✓ 获取到 {len(template_list)} 个模板")
 
                 print(f"\n[7] 开始制作视频 (共3次)...")
+                task1_success_count = 0
                 available_templates = template_list.copy()
 
                 success_count = 0
@@ -668,14 +594,14 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
                         available_templates.remove(template)
                         continue
 
-                    make_result = api.make_new_year_video(phone, template)
-                    code = make_result.get("code", "")
-                    msg = make_result.get("message", make_result.get("desc", str(make_result)))
+                    result = api.make_new_year_video(phone, template)
+                    code = result.get("code", "")
+                    msg = result.get("message", result.get("desc", str(result)))
 
                     available_templates.remove(template)
 
                     if code == "0000":
-                        data = make_result.get("data", {})
+                        data = result.get("data", {})
                         add_lottery_times = data.get("addLotteryTimes", 0)
                         add_huango_times = data.get("addHuanGoLotteryTimes", "0")
                         print(f"  ✓ 制作成功! 获得抽奖次数: {add_lottery_times}, 换购次数: {add_huango_times}")
@@ -689,7 +615,6 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
 
                 print(f"\n任务1完成: {success_count}/3 成功 (共尝试 {attempt_count} 次)")
                 task1_success = success_count > 0
-                summary["video"] = f"{task1_success_count}/3"
 
     lottery_times_result = api.get_lottery_times(phone)
     if lottery_times_result.get("code") == "0000":
@@ -698,18 +623,14 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
     else:
         print(f"⚠ 查询失败")
         after_task1_times = initial_times
-        summary["notes"].append("任务1后抽奖次数查询失败")
-    summary["lottery_after_task1"] = after_task1_times
 
     print("\n" + "="*50)
     print("【任务2】去智能体创作（获得抽奖次数）")
     print("="*50)
 
-    task2_success_count = 0
     if task2_completed:
         print("\n✓ 任务2已完成，跳过")
         task2_success_count = 3
-        summary["image"] = "已完成(跳过)"
     else:
         ai_prompts = [
             "生成一张马年春节窗花剪纸的图片",
@@ -718,6 +639,7 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
         ]
 
         print(f"\n[9] 开始AI对话生成图片 (共3次)...")
+        task2_success_count = 0
         session_id = ""  
 
         for chat_idx in range(3):
@@ -791,7 +713,6 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
                 time.sleep(2) 
 
         print(f"\n任务2完成: {task2_success_count}/3 成功")
-        summary["image"] = f"{task2_success_count}/3"
 
     print("\n" + "="*50)
     print("【抽奖环节】")
@@ -804,14 +725,12 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
     else:
         print(f"⚠ 查询失败，跳过抽奖")
         final_times = 0
-        summary["notes"].append("最终抽奖次数查询失败")
-    summary["lottery_final"] = final_times
 
     total_red_packet = 0.0  # 累计红包金额
-    lottery_success = 0
-    awards = []
     if final_times > 0:
         print(f"\n开始抽奖 (共{final_times}次)...")
+        lottery_success = 0
+        awards = []
 
         for lottery_idx in range(final_times):
             print(f"\n  第 {lottery_idx + 1}/{final_times} 次抽奖...")
@@ -830,7 +749,6 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
             else:
                 msg = lottery_result.get("desc", lottery_result.get("message", "未知错误"))
                 print(f"  ✗ 抽奖失败: {msg}")
-                summary["notes"].append(f"抽奖失败: {msg}")
 
             if lottery_idx < final_times - 1:
                 time.sleep(0.5)  # 抽奖间隔
@@ -842,9 +760,6 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
             print(f"累计红包: {total_red_packet:.2f}元")
     else:
         print(f"\n跳过抽奖 (抽奖次数为0)")
-    summary["lottery_success"] = lottery_success
-    summary["lottery_awards"] = awards
-    summary["red_packet_gained"] = round(total_red_packet, 2)
 
     print(f"\n查询红包余额...")
 
@@ -858,9 +773,6 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
         print(f"  ✓ 查询成功!")
         print(f"  累计已兑换: {already_redeem}元")
         print(f"  剩余可兑换: {balance_cost}元")
-        summary["already_redeem"] = str(already_redeem)
-        summary["balance_cost"] = str(balance_cost)
-        summary["redeem_records"] = already_redeem_costs[:3]
 
         if already_redeem_costs:
             print(f"  已兑换记录:")
@@ -885,28 +797,16 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
                     print(f"  本次提取: {extract_value}元")
                     print(f"  累计已兑换: {new_already_redeem}元")
                     print(f"  剩余可兑换: {new_balance}元")
-                    summary["redeem_status"] = "成功"
-                    summary["redeem_amount"] = str(extract_value)
-                    summary["already_redeem"] = str(new_already_redeem)
-                    summary["balance_cost"] = str(new_balance)
                 else:
                     msg = redeem_result.get("desc", redeem_result.get("message", "未知错误"))
                     print(f"  ✗ 兑换失败: {msg}")
-                    summary["redeem_status"] = f"失败: {msg}"
-                    summary["notes"].append(f"兑换失败: {msg}")
             else:
                 print(f"  ℹ️  需满2元才能兑换（还差{2.0 - balance_float:.2f}元）")
-                summary["need_to_redeem"] = f"{2.0 - balance_float:.2f}"
-                summary["redeem_status"] = f"未达门槛(差{2.0 - balance_float:.2f}元)"
         except Exception as e:
             print(f"  ⚠ 处理失败: {e}")
-            summary["redeem_status"] = f"余额处理异常: {e}"
-            summary["notes"].append(f"余额处理异常: {e}")
     else:
         msg = balance_result.get("desc", balance_result.get("message", "未知错误"))
         print(f"  ✗ 查询失败: {msg}")
-        summary["redeem_status"] = "余额查询失败"
-        summary["notes"].append(f"余额查询失败: {msg}")
     stat_result = api.send_stat_message(
         phone,
         "activity_2512new-year-2026_30.1",
@@ -916,26 +816,12 @@ def process_new_year_lottery(phone: str, password: str, account_idx: int = 0, to
         pass
     else:
         print(f"发送失败: {stat_result.get('desc', '')}")
-        summary["notes"].append("统计上报失败")
 
     print(f"\n{'='*50}")
     print(f"账号 {phone} 处理完成")
     print(f"{'='*50}")
 
-    summary["task1_success_count"] = task1_success_count
-    summary["task2_success_count"] = task2_success_count
-    summary["ok"] = True
-    summary["has_output"] = (
-        task1_success_count > 0
-        or task2_success_count > 0
-        or lottery_success > 0
-        or to_float(summary["redeem_amount"]) > 0
-    )
-    if summary["has_output"]:
-        summary["status"] = "成功(有新增)"
-    else:
-        summary["status"] = "执行完成(无新增)"
-    return summary
+    return task1_success or task2_success_count > 0
 
 
 def process_account(phone: str, password: str, account_idx: int = 0, total_accounts: int = 0):
@@ -1091,134 +977,54 @@ def process_account(phone: str, password: str, account_idx: int = 0, total_accou
         return False
 
 
-def format_awards(awards, limit=6):
-    if not awards:
-        return "无"
-    if len(awards) <= limit:
-        return "、".join(awards)
-    return f"{'、'.join(awards[:limit])} 等{len(awards)}项"
-
-
-def format_redeem_records(records, limit=2):
-    if not records:
-        return "无"
-    items = []
-    for record in records[:limit]:
-        award_name = record.get("awardName", "")
-        update_date = record.get("updateDate", "")
-        if award_name and update_date:
-            items.append(f"{award_name}({update_date})")
-        elif award_name:
-            items.append(award_name)
-    if not items:
-        return "无"
-    if len(records) > limit:
-        items.append(f"...共{len(records)}条")
-    return "；".join(items)
-
-
 def main():
     accounts = parse_accounts(ACCOUNTS_STR)
     if not accounts:
         print("错误: 未配置账号环境变量 chinaTelecomAccount")
         return
 
-    start_dt = datetime.datetime.now()
-    report = [
-        f"📅 日期: {start_dt.strftime('%m月%d日 %H:%M:%S')}",
-        f"🎯 活动模式: {ACTIVITY_MODE}",
-        f"📊 账号总数: {len(accounts)}",
-        "=" * 28
-    ]
+    # --- 开始汇总日志 ---
+    log_list = []
+    start_time = datetime.datetime.now().strftime("%H:%M:%S")
+    log_list.append(f"⏰ 开始时间: {start_time}")
 
-    success_total = 0
-    output_total = 0
-    lottery_total = 0
-    lottery_success_total = 0
-    red_packet_total = 0.0
-    balance_total = 0.0
-    redeemed_total = 0.0
-    redeem_success_total = 0
+    total = len(accounts)
+    success_count = 0
 
-    print(f"--- 共发现 {len(accounts)} 个账号，开始执行 ---")
+    print(f"--- 共发现 {total} 个账号，开始执行 ---")
 
     for idx, (phone, password) in enumerate(accounts):
         curr_idx = idx + 1
+        masked_phone = f"{phone[:3]}****{phone[-4:]}"
+
+        # 执行原本的业务逻辑
         try:
-            res = process_new_year_lottery(phone, password, curr_idx, len(accounts))
+            # 调用你原脚本里的执行函数
+            res = process_new_year_lottery(phone, password, curr_idx, total)
+            if res:
+                success_count += 1
+                status = "✅ 成功"
+            else:
+                status = "❌ 失败"
         except Exception as e:
-            res = {
-                "status": f"异常: {e}",
-                "ok": False,
-                "has_output": False,
-                "video": "0/3",
-                "image": "0/3",
-                "lottery_initial": 0,
-                "lottery_after_task1": 0,
-                "lottery_final": 0,
-                "lottery_success": 0,
-                "lottery_awards": [],
-                "red_packet_gained": 0.0,
-                "already_redeem": "0",
-                "balance_cost": "0",
-                "redeem_status": "未触发",
-                "redeem_records": [],
-                "notes": [f"执行异常: {e}"]
-            }
+            status = f"⚠️ 错误: {str(e)}"
 
-        if res.get("ok"):
-            success_total += 1
-        if res.get("has_output"):
-            output_total += 1
-        if res.get("redeem_status") == "成功":
-            redeem_success_total += 1
+        # 记录到日志列表
+        log_list.append(f"[{curr_idx}] {masked_phone}: {status}")
+        time.sleep(random.randint(2, 5))
 
-        lottery_total += int(res.get("lottery_final", 0))
-        lottery_success_total += int(res.get("lottery_success", 0))
-        red_packet_total += to_float(res.get("red_packet_gained"))
-        balance_total += to_float(res.get("balance_cost"))
-        redeemed_total += to_float(res.get("already_redeem"))
+    # --- 汇总结束 ---
+    summary = f"\n📊 任务汇总：\n成功: {success_count} / 总数: {total}"
+    log_list.append(summary)
 
-        status_icon = "✅" if res.get("ok") else "❌"
-        award_text = format_awards(res.get("lottery_awards", []))
-        redeem_record_text = format_redeem_records(res.get("redeem_records", []))
-        notes = "；".join(res.get("notes", [])[:3])
-
-        acc_msg = (
-            f"👤 [{curr_idx}] {mask_phone(phone)} {status_icon} {res.get('status', '未知')}\n"
-            f"   任务: 视频 {res.get('video', '0/3')} | AI图 {res.get('image', '0/3')}\n"
-            f"   抽奖: 初始 {res.get('lottery_initial', 0)} -> 任务后 {res.get('lottery_after_task1', 0)} -> 最终 {res.get('lottery_final', 0)} | 成功 {res.get('lottery_success', 0)}\n"
-            f"   奖品: {award_text}\n"
-            f"   红包: 本轮 +{to_float(res.get('red_packet_gained')):.2f}元 | 累计已兑 {res.get('already_redeem', '0')}元 | 当前可兑 {res.get('balance_cost', '0')}元\n"
-            f"   兑换: {res.get('redeem_status', '未触发')}"
-        )
-        if redeem_record_text != "无":
-            acc_msg += f"\n   最近兑换: {redeem_record_text}"
-        if notes:
-            acc_msg += f"\n   备注: {notes}"
-
-        report.append(acc_msg)
-        report.append("-" * 20)
-
-        if idx < len(accounts) - 1:
-            time.sleep(random.randint(2, 5))
-
-    cost_seconds = int((datetime.datetime.now() - start_dt).total_seconds())
-    report.extend([
-        f"✅ 登录成功账号: {success_total}/{len(accounts)}",
-        f"📌 有新增产出账号: {output_total}/{len(accounts)}",
-        f"🎟 抽奖成功: {lottery_success_total}/{lottery_total}",
-        f"🧧 本轮红包合计: {red_packet_total:.2f}元",
-        f"💰 当前可兑合计: {balance_total:.2f}元",
-        f"🏦 累计已兑合计: {redeemed_total:.2f}元",
-        f"💸 自动兑换成功: {redeem_success_total}个账号",
-        f"⏱ 运行耗时: {cost_seconds}秒"
-    ])
-
-    full_report = "\n".join(report)
+    full_report = "\n".join(log_list)
     print(full_report)
+
+    # --- 触发推送 ---
     send_to_qq("天翼智铃运行报告", full_report)
 
 
 if __name__ == '__main__':
     main()
+
+
