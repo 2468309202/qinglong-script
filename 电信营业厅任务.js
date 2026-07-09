@@ -1007,6 +1007,8 @@
                     break;
                   }
               }
+              let delay = Math.floor(Math.random() * 3000) + 3000;
+              await _0x1a907b.wait(delay);
             }
           } else {
             let _0x4a4e2d = _0x49f4fc?.["data"]?.["daeh".split("").reverse().join("")]?.["err"] || "";
