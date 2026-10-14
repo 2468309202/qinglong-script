@@ -1,6 +1,6 @@
 <h1 id="L9K9D">写在前沿</h1>
 青龙是什么？
-加QQ群：978659787
+加QQ群：978659787 青龙面板交流群（已满员）、693577956 青龙面板交流群 2（已满员）、715827128 青龙面板交流群 3（未满员）
 <font style="color:rgb(33, 53, 71);">答：支持 Python3、JavaScript、Shell、Typescript 的定时任务管理平台</font>
 
 <h2 id="功能特性"><font style="color:rgb(33, 53, 71);">功能特性</font>[<font style="color:rgb(0, 149, 255);">#</font>](https://qinglong.online/guide/introduction#%E5%8A%9F%E8%83%BD%E7%89%B9%E6%80%A7)</h2>
