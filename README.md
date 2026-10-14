@@ -1,7 +1,7 @@
 # 🐉 2468309202 青龙脚本仓库 | qinglong-script
 
 > 个人维护的青龙面板自动化脚本集合，自用存档，持续更新优化。
-> 欢迎加入交流群：**978659787**
+> > 欢迎加入交流群：**978659787** 青龙面板交流群（已满员）、**693577956** 青龙面板交流群 2（已满员）、**715827128** 青龙面板交流群 3（未满员）
 [![Star History Chart](https://api.star-history.com/svg?repos=2468309202/qinglong-script&type=date&legend=top-left)](https://www.star-history.com/#2468309202/qinglong-script&type=date&legend=top-left)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
